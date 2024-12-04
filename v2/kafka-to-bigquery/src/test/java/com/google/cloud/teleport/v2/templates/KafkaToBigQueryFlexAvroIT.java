@@ -93,6 +93,7 @@ public final class KafkaToBigQueryFlexAvroIT extends TemplateTestBase {
         Schema.of(
             Field.of("productId", StandardSQLTypeName.INT64),
             Field.newBuilder("productName", StandardSQLTypeName.STRING).setMaxLength(10L).build(),
+            Field.of("productSize", StandardSQLTypeName.FLOAT64),
             Field.of("productUsage", StandardSQLTypeName.STRING));
 
     kafkaResourceManager =
@@ -154,6 +155,10 @@ public final class KafkaToBigQueryFlexAvroIT extends TemplateTestBase {
         b ->
             b.addParameter("messageFormat", "AVRO_CONFLUENT_WIRE_FORMAT")
                 .addParameter("schemaFormat", "SCHEMA_REGISTRY")
+                // If this test fails, check if the below schema registry has
+                // correct schemas registered with the following IDs:
+                // - 5 (avro_schema.avsc)
+                // - 4 (other_avro_schema.avsc)
                 .addParameter("schemaRegistryConnectionUrl", "http://10.128.0.60:8081")
                 .addParameter("writeMode", "DYNAMIC_TABLE_NAMES")
                 .addParameter("outputProject", PROJECT)
@@ -170,8 +175,10 @@ public final class KafkaToBigQueryFlexAvroIT extends TemplateTestBase {
         b ->
             b.addParameter("messageFormat", "AVRO_CONFLUENT_WIRE_FORMAT")
                 .addParameter("schemaFormat", "SCHEMA_REGISTRY")
-                // Schemas are registered with ids 3 and 4. If this test fails, check if the
-                // below schema registry address contains the expected schema registered.
+                // If this test fails, check if the below schema registry has
+                // correct schemas registered with the following IDs:
+                // - 5 (avro_schema.avsc)
+                // - 4 (other_avro_schema.avsc)
                 .addParameter("schemaRegistryConnectionUrl", "http://10.128.0.60:8081")
                 .addParameter("writeMode", "DYNAMIC_TABLE_NAMES")
                 .addParameter("outputProject", PROJECT)
@@ -403,10 +410,8 @@ public final class KafkaToBigQueryFlexAvroIT extends TemplateTestBase {
         && options.getParameter("schemaFormat").equals("SCHEMA_REGISTRY")
         && options.getParameter("schemaRegistryConnectionUrl") != null) {
 
-      // Schemas are registered in schema registry with IDs 3 and 4 for Kafka Reads. So for these
-      // tests
-      // publish the messages with schema IDs 3 and 4.
-      publishDoubleSchemaMessages(topicName, 3, 4);
+      // Schemas are registered with ids 5 (avro_schema.avsc) and 4 (other_avro_schema.avsc).
+      publishDoubleSchemaMessages(topicName, 5, 4);
       tableId = TableId.of(bqDatasetId, avroSchema.getFullName().replace(".", "-"));
       TableId otherTableId =
           TableId.of(bqDatasetId, otherAvroSchema.getFullName().replace(".", "-"));
@@ -453,7 +458,7 @@ public final class KafkaToBigQueryFlexAvroIT extends TemplateTestBase {
                       "productName",
                       "Dataflow",
                       "productSize",
-                      2d,
+                      2.5d,
                       "productUsage",
                       "HIGH",
                       "_key",
@@ -479,7 +484,7 @@ public final class KafkaToBigQueryFlexAvroIT extends TemplateTestBase {
                       "productName",
                       "Dataflow",
                       "productSize",
-                      2d,
+                      2.5d,
                       "productUsage",
                       "HIGH"),
                   Map.of(
@@ -504,7 +509,7 @@ public final class KafkaToBigQueryFlexAvroIT extends TemplateTestBase {
             new StringSerializer(), new KafkaAvroSerializer(registryClient));
 
     for (int i = 1; i <= 10; i++) {
-      GenericRecord dataflow = createRecord(Integer.valueOf(i + "1"), "Dataflow", 2f, "HIGH");
+      GenericRecord dataflow = createRecord(Integer.valueOf(i + "1"), "Dataflow", 2.5f, "HIGH");
       publish(kafkaProducer, topicName, i + "1", dataflow);
 
       GenericRecord pubsub = createRecord(Integer.valueOf(i + "2"), "Pub/Sub", 123.125f, "MEDIUM");
@@ -533,7 +538,7 @@ public final class KafkaToBigQueryFlexAvroIT extends TemplateTestBase {
             new StringSerializer(), new KafkaAvroSerializer(registryClient));
 
     for (int i = 1; i <= 10; i++) {
-      GenericRecord dataflow = createRecord(Integer.valueOf(i + "1"), "Dataflow", 2f, "HIGH");
+      GenericRecord dataflow = createRecord(Integer.valueOf(i + "1"), "Dataflow", 2.5f, "HIGH");
       publish(kafkaProducer, topicName, i + "1", dataflow);
 
       GenericRecord pubsub = createRecord(Integer.valueOf(i + "2"), "Pub/Sub", 123.125f, "MEDIUM");
@@ -568,7 +573,7 @@ public final class KafkaToBigQueryFlexAvroIT extends TemplateTestBase {
             new StringSerializer(), new BinaryAvroSerializer(avroSchema));
 
     for (int i = 1; i <= 10; i++) {
-      GenericRecord dataflow = createRecord(Integer.valueOf(i + "1"), "Dataflow", 2f, "HIGH");
+      GenericRecord dataflow = createRecord(Integer.valueOf(i + "1"), "Dataflow", 2.5f, "HIGH");
       publishBinary(kafkaProducer, topicName, i + "1", dataflow);
 
       GenericRecord pubsub = createRecord(Integer.valueOf(i + "2"), "Pub/Sub", 123.125f, "MEDIUM");
