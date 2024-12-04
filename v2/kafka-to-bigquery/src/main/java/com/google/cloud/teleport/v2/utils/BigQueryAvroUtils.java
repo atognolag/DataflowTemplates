@@ -401,7 +401,8 @@ public class BigQueryAvroUtils {
         verify(v instanceof ByteBuffer, "Expected ByteBuffer, got %s", v.getClass());
         ByteBuffer byteBuffer = (ByteBuffer) v;
         byte[] bytes = new byte[byteBuffer.limit()];
-        byteBuffer.get(bytes);
+        ByteBuffer readOnlyBuffer = byteBuffer.asReadOnlyBuffer();
+        readOnlyBuffer.get(bytes);
         return BaseEncoding.base64().encode(bytes);
       default:
         throw new UnsupportedOperationException(
