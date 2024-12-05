@@ -370,6 +370,8 @@ public class BigQueryWriteUtils {
                       this.persistKafkaKey))
               .withWriteDisposition(
                   BigQueryIO.Write.WriteDisposition.valueOf(this.writeDisposition))
+              .ignoreUnknownValues()
+              .withAutoSchemaUpdate(true)
               .withCreateDisposition(
                   BigQueryIO.Write.CreateDisposition.valueOf(this.createDisposition))
               .withFailedInsertRetryPolicy(InsertRetryPolicy.retryTransientErrors())

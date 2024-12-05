@@ -68,6 +68,7 @@ import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PCollectionList;
 import org.apache.beam.sdk.values.PCollectionTuple;
 import org.apache.beam.sdk.values.TupleTag;
+import org.apache.beam.runners.dataflow.DataflowRunner;
 import org.apache.commons.lang3.ObjectUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -213,16 +214,18 @@ public class KafkaToBigQueryFlex {
    * @return The pipeline result.
    */
   public static PipelineResult run(KafkaToBigQueryFlexOptions options) throws Exception {
+    System.out.println(options.getRunner());
+    if (DataflowRunner.class.isAssignableFrom(options.getRunner())) {
+      // Enable Streaming Engine
+      options.setEnableStreamingEngine(true);
 
-    // Enable Streaming Engine
-    options.setEnableStreamingEngine(true);
-
-    List<String> dataflowServiceOptions = options.getDataflowServiceOptions();
-    if (dataflowServiceOptions == null) {
-      dataflowServiceOptions = new ArrayList<>();
+      List<String> dataflowServiceOptions = options.getDataflowServiceOptions();
+      if (dataflowServiceOptions == null) {
+        dataflowServiceOptions = new ArrayList<>();
+      }
+      dataflowServiceOptions.add("enable_streaming_engine_resource_based_billing");
+      options.setDataflowServiceOptions(dataflowServiceOptions);
     }
-    dataflowServiceOptions.add("enable_streaming_engine_resource_based_billing");
-    options.setDataflowServiceOptions(dataflowServiceOptions);
 
     // Validate BQ STORAGE_WRITE_API options
     options.setUseStorageWriteApi(true);
@@ -401,6 +404,10 @@ public class KafkaToBigQueryFlex {
       throw new RuntimeException(
           "Missing required parameters: Schema Registry URL and/or Output Dataset");
     }
+    // Ac'a
+    kafkaRecords =
+        kafkaRecords.apply(
+            "Print Elements III before Schema coding", ParDo.of(new PrintElementFn<>()));
     WriteResult writeResult;
     BigQueryWriteUtils.BigQueryDynamicWrite bigQueryWrite;
     if (useErrorHandler(options)) {
@@ -437,8 +444,17 @@ public class KafkaToBigQueryFlex {
                     KafkaConfig.fromSchemaRegistryOptions(options),
                     errorHandler,
                     badRecordRouter))
+            .apply("Print Elements IV after Shcema coding", ParDo.of(new PrintElementFn<>()))
             .apply(bigQueryWrite);
     return writeResult;
+  }
+
+  private static class PrintElementFn<T> extends DoFn<T, T> {
+    @ProcessElement
+    public void processElement(@Element T input, OutputReceiver<T> out) {
+      System.out.println(input.toString());
+      out.output(input);
+    }
   }
 
   public static Pipeline runAvroPipeline(
@@ -478,8 +494,10 @@ public class KafkaToBigQueryFlex {
                 "ReadBytesFromKafka",
                 KafkaTransform.readBytesFromKafka(
                     bootstrapServers, topicsList, kafkaConfig, options.getEnableCommitOffsets()))
+            .apply("Print Elements After Read", ParDo.of(new PrintElementFn<>()))
             .setCoder(
-                KafkaRecordCoder.of(NullableCoder.of(ByteArrayCoder.of()), ByteArrayCoder.of()));
+                KafkaRecordCoder.of(NullableCoder.of(ByteArrayCoder.of()), ByteArrayCoder.of()))
+            .apply("Print Elements After Coding", ParDo.of(new PrintElementFn<>()));
 
     WriteResult writeResult = processKafkaRecords(kafkaRecords, options);
     return pipeline;
