@@ -400,8 +400,9 @@ public class BigQueryAvroUtils {
       case "BYTES":
         verify(v instanceof ByteBuffer, "Expected ByteBuffer, got %s", v.getClass());
         ByteBuffer byteBuffer = (ByteBuffer) v;
-        byte[] bytes = new byte[byteBuffer.limit()];
+        //Prevent inplace modifications of the byte buffer by the .get() method
         ByteBuffer readOnlyBuffer = byteBuffer.asReadOnlyBuffer();
+        byte[] bytes = new byte[byteBuffer.limit()];
         readOnlyBuffer.get(bytes);
         return BaseEncoding.base64().encode(bytes);
       default:
