@@ -146,6 +146,11 @@
         <artifactId>avro</artifactId>
         <version>${avro.version}</version>
       </dependency>
+      <dependency>
+        <groupId>org.apache.beam</groupId>
+        <artifactId>beam-runners-direct-java</artifactId>
+        <version>${beam.version}</version>
+      </dependency>
 
       <!-- If any module uses log4j 2.x, enforce patched versions -->
       <dependency>

@@ -20,6 +20,7 @@ import com.google.cloud.teleport.v2.kafka.dlq.BigQueryDeadLetterQueueOptions;
 import com.google.cloud.teleport.v2.kafka.options.KafkaReadOptions;
 import com.google.cloud.teleport.v2.kafka.options.SchemaRegistryOptions;
 import com.google.cloud.teleport.v2.transforms.JavascriptTextTransformer.JavascriptTextTransformerOptions;
+import org.apache.beam.runners.direct.DirectOptions;
 import org.apache.beam.runners.dataflow.options.DataflowPipelineOptions;
 import org.apache.beam.sdk.options.Default;
 
@@ -28,7 +29,8 @@ import org.apache.beam.sdk.options.Default;
  * executor at the command-line.
  */
 public interface KafkaToBigQueryFlexOptions
-    extends DataflowPipelineOptions,
+    extends DirectOptions,
+        DataflowPipelineOptions,
         KafkaReadOptions,
         BigQueryStorageApiStreamingOptions,
         SchemaRegistryOptions,
