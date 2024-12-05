@@ -214,7 +214,6 @@ public class KafkaToBigQueryFlex {
    * @return The pipeline result.
    */
   public static PipelineResult run(KafkaToBigQueryFlexOptions options) throws Exception {
-    System.out.println(options.getRunner());
     if (DataflowRunner.class.isAssignableFrom(options.getRunner())) {
       // Enable Streaming Engine
       options.setEnableStreamingEngine(true);
