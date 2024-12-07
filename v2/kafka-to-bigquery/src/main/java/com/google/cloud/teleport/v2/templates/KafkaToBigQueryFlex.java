@@ -243,7 +243,7 @@ public class KafkaToBigQueryFlex {
       List<String> bootstrapServerAndTopicList =
           KafkaTopicUtils.getBootstrapServerAndTopic(
               options.getReadBootstrapServerAndTopic(), options.getProject());
-      topicsList = List.of(bootstrapServerAndTopicList.get(1));
+      topicsList = List.of(bootstrapServerAndTopicList.get(1).split(","));
       bootstrapServers = bootstrapServerAndTopicList.get(0);
     } else {
       throw new IllegalArgumentException(
