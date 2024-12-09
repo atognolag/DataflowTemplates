@@ -40,8 +40,10 @@ import com.google.cloud.teleport.v2.values.FailsafeElement;
 import com.google.common.base.Strings;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import org.joda.time.Duration;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.PipelineResult;
 import org.apache.beam.sdk.coders.ByteArrayCoder;
@@ -144,6 +146,7 @@ public class KafkaToBigQueryFlex {
 
     KafkaToBigQueryFlexOptions options =
         PipelineOptionsFactory.fromArgs(args).withValidation().as(KafkaToBigQueryFlexOptions.class);
+    options.setExperiments(Arrays.asList("beam_fn_api"));
 
     run(options);
   }
@@ -237,14 +240,16 @@ public class KafkaToBigQueryFlex {
     // Create the pipeline
     Pipeline pipeline = Pipeline.create(options);
 
-    List<String> topicsList;
+    String topicsRegex;
     String bootstrapServers;
+    Duration topicsRefresh;
     if (options.getReadBootstrapServerAndTopic() != null) {
       List<String> bootstrapServerAndTopicList =
           KafkaTopicUtils.getBootstrapServerAndTopic(
               options.getReadBootstrapServerAndTopic(), options.getProject());
-      topicsList = List.of(bootstrapServerAndTopicList.get(1).split(","));
+      topicsRegex = bootstrapServerAndTopicList.get(1);
       bootstrapServers = bootstrapServerAndTopicList.get(0);
+      topicsRefresh = Duration.standardSeconds(options.getTopicRefresh());
     } else {
       throw new IllegalArgumentException(
           "Please provide a valid bootstrap server which matches `[,:a-zA-Z0-9._-]+` and a topic which matches `[,a-zA-Z0-9._-]+`");
@@ -282,11 +287,11 @@ public class KafkaToBigQueryFlex {
     if (options.getMessageFormat() == null
         || options.getMessageFormat().equals(MessageFormatConstants.JSON)) {
 
-      pipeline = runJsonPipeline(pipeline, options, topicsList, bootstrapServers, kafkaConfig);
+      pipeline = runJsonPipeline(pipeline, options, topicsRegex, bootstrapServers, topicsRefresh, kafkaConfig);
 
     } else if (options.getMessageFormat().equals(MessageFormatConstants.AVRO_CONFLUENT_WIRE_FORMAT)
         || options.getMessageFormat().equals(MessageFormatConstants.AVRO_BINARY_ENCODING)) {
-      pipeline = runAvroPipeline(pipeline, options, topicsList, bootstrapServers, kafkaConfig);
+      pipeline = runAvroPipeline(pipeline, options, topicsRegex, bootstrapServers, topicsRefresh, kafkaConfig);
 
     } else {
       throw new IllegalArgumentException("Invalid format specified: " + options.getMessageFormat());
@@ -459,8 +464,9 @@ public class KafkaToBigQueryFlex {
   public static Pipeline runAvroPipeline(
       Pipeline pipeline,
       KafkaToBigQueryFlexOptions options,
-      List<String> topicsList,
+      String topicsRegex,
       String bootstrapServers,
+      Duration topicsRefresh,
       Map<String, Object> kafkaConfig)
       throws Exception {
 
@@ -492,7 +498,7 @@ public class KafkaToBigQueryFlex {
             .apply(
                 "ReadBytesFromKafka",
                 KafkaTransform.readBytesFromKafka(
-                    bootstrapServers, topicsList, kafkaConfig, options.getEnableCommitOffsets()))
+                    bootstrapServers, topicsRegex, topicsRefresh, kafkaConfig, options.getEnableCommitOffsets()))
             .apply("Print Elements After Read", ParDo.of(new PrintElementFn<>()))
             .setCoder(
                 KafkaRecordCoder.of(NullableCoder.of(ByteArrayCoder.of()), ByteArrayCoder.of()))
@@ -505,8 +511,9 @@ public class KafkaToBigQueryFlex {
   public static Pipeline runJsonPipeline(
       Pipeline pipeline,
       KafkaToBigQueryFlexOptions options,
-      List<String> topicsList,
+      String topicsRegex,
       String bootstrapServers,
+      Duration topicReferesh,
       Map<String, Object> kafkaConfig) {
 
     // Register the coder for pipeline
@@ -528,7 +535,7 @@ public class KafkaToBigQueryFlex {
             .apply(
                 "ReadFromKafka",
                 KafkaTransform.readStringFromKafka(
-                    bootstrapServers, topicsList, kafkaConfig, options.getEnableCommitOffsets()))
+                    bootstrapServers, topicsRegex, topicReferesh, kafkaConfig, options.getEnableCommitOffsets()))
 
             /*
              * Step #2: Transform the Kafka Messages into TableRows

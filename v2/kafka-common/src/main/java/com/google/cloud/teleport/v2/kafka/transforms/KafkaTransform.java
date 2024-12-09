@@ -20,6 +20,7 @@ import com.google.cloud.teleport.v2.utils.SchemaUtils;
 import com.google.cloud.teleport.v2.values.FailsafeElement;
 import java.util.List;
 import java.util.Map;
+import org.joda.time.Duration;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.beam.sdk.coders.ByteArrayCoder;
@@ -59,6 +60,38 @@ public class KafkaTransform {
         KafkaIO.<String, String>read()
             .withBootstrapServers(bootstrapServers)
             .withTopics(topicsList)
+            .withKeyDeserializerAndCoder(
+                StringDeserializer.class, NullableCoder.of(StringUtf8Coder.of()))
+            .withValueDeserializerAndCoder(
+                StringDeserializer.class, NullableCoder.of(StringUtf8Coder.of()))
+            .withConsumerConfigUpdates(config)
+            .withConsumerFactoryFn(new FileAwareConsumerFactoryFn());
+    if (enableCommitOffsets != null && enableCommitOffsets) {
+      kafkaRecords = kafkaRecords.commitOffsetsInFinalize();
+    }
+    return kafkaRecords;
+    // topic, partition, source offset
+  }
+
+  /**
+   * Configures a Dynamic Kafka consumer that reads String.
+   *
+   * @param bootstrapServers Kafka servers to read from
+   * @param topicsRegex Kafka topics to read from
+   * @param config configuration for the Kafka consumer
+   * @return PCollection of Kafka Key & Value Pair deserialized in string format
+   */
+  public static KafkaIO.Read<String, String> readStringFromKafka(
+      String bootstrapServers,
+      String topicsRegex,
+      Duration topicsRefresh,
+      Map<String, Object> config,
+      Boolean enableCommitOffsets) {
+    KafkaIO.Read<String, String> kafkaRecords =
+        KafkaIO.<String, String>read()
+            .withBootstrapServers(bootstrapServers)
+            .withTopicPattern(topicsRegex)
+            .withDynamicRead(topicsRefresh)
             .withKeyDeserializerAndCoder(
                 StringDeserializer.class, NullableCoder.of(StringUtf8Coder.of()))
             .withValueDeserializerAndCoder(
@@ -119,6 +152,38 @@ public class KafkaTransform {
         KafkaIO.<byte[], byte[]>read()
             .withBootstrapServers(bootstrapServers)
             .withTopics(topicsList)
+            .withKeyDeserializerAndCoder(
+                ByteArrayDeserializer.class, NullableCoder.of(ByteArrayCoder.of()))
+            .withValueDeserializerAndCoder(ByteArrayDeserializer.class, ByteArrayCoder.of())
+            .withConsumerConfigUpdates(config)
+            .withConsumerFactoryFn(new FileAwareConsumerFactoryFn());
+
+    if (enableCommitOffsets != null && enableCommitOffsets) {
+      kafkaRecords = kafkaRecords.commitOffsetsInFinalize();
+    }
+    return kafkaRecords;
+  }
+
+  /**
+   * Configures a dynamic Kafka consumer that reads bytes.
+   *
+   * @param bootstrapServers Kafka servers to read from
+   * @param topicsRegex Kafka topics to read from
+   * @param config configuration for the Kafka consumer
+   * @return PCollection of Kafka Key & Value Pair deserialized in string format
+   */
+  public static KafkaIO.Read<byte[], byte[]> readBytesFromKafka(
+      String bootstrapServers,
+      String topicsRegex,
+      Duration topicsRefresh,
+      Map<String, Object> config,
+      Boolean enableCommitOffsets) {
+
+    KafkaIO.Read<byte[], byte[]> kafkaRecords =
+        KafkaIO.<byte[], byte[]>read()
+            .withBootstrapServers(bootstrapServers)
+            .withTopicPattern(topicsRegex)
+            .withDynamicRead(topicsRefresh)
             .withKeyDeserializerAndCoder(
                 ByteArrayDeserializer.class, NullableCoder.of(ByteArrayCoder.of()))
             .withValueDeserializerAndCoder(ByteArrayDeserializer.class, ByteArrayCoder.of())

@@ -42,7 +42,11 @@ public class KafkaTopicUtils {
     } else {
       String[] list = bootstrapServerAndTopicString.split(";");
       bootstrapServer = list[0];
-      topicName = list[1];
+      if (list.length >= 2) {
+        topicName = list[1];
+      } else {
+        topicName = "";
+      }
     }
     return List.of(bootstrapServer, topicName);
   }
