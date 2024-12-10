@@ -24,6 +24,7 @@ import com.google.cloud.teleport.v2.utils.BigQueryConstants;
 import com.google.cloud.teleport.v2.values.FailsafeElement;
 import com.google.common.collect.ImmutableList;
 import java.io.Serializable;
+import java.util.List;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.beam.sdk.coders.ByteArrayCoder;
@@ -376,14 +377,13 @@ public class BigQueryWriteUtils {
               .withAutoSchemaUpdate(true)
               .withCreateDisposition(
                   BigQueryIO.Write.CreateDisposition.valueOf(this.createDisposition))
-              .withPrimaryKey(ImmutableList.of("id")) // .withPrimaryKey(ImmutableList.of("_CDC_PK"))
+              .withPrimaryKey(List.of("id")) // .withPrimaryKey(List.of("_CDC_PK"))
               .withFailedInsertRetryPolicy(InsertRetryPolicy.retryTransientErrors())
-              //.withFormatFunction(kv -> kv.getValue())
               .withExtendedErrorInfo()
               .withMethod(BigQueryIO.Write.Method.STORAGE_API_AT_LEAST_ONCE)
               .withWriteDisposition(
                   BigQueryIO.Write.WriteDisposition.valueOf(this.writeDisposition));
-              //.withNumStorageWriteApiStreams(this.numStorageWriteApiStreams);
+
 
       if (!(errorHandler instanceof ErrorHandler.DefaultErrorHandler)) {
         writeToBigQuery = writeToBigQuery.withErrorHandler(errorHandler);
@@ -423,22 +423,14 @@ public class BigQueryWriteUtils {
                           bqChangeSequence = bqChangeSequence.concat(Integer.toHexString(number).toUpperCase());
                         }
                         if (headers.get("operation").toString() == "DELETE") {
-                          System.out.println(RowMutationInformation.of(RowMutationInformation.MutationType.DELETE,
-                              bqChangeSequence));
                           return RowMutationInformation.of(RowMutationInformation.MutationType.DELETE,
                               bqChangeSequence);
                         } else {
-                          System.out.println(RowMutationInformation.of(RowMutationInformation.MutationType.UPSERT,
-                              bqChangeSequence));
                           return RowMutationInformation.of(RowMutationInformation.MutationType.UPSERT,
                               bqChangeSequence);
                         }
                       })
-                  .withFormatFunction((KV<GenericRecord, TableRow> rowKV) -> {
-                    System.out.println(rowKV.getValue());
-                    TableRow hola = rowKV.getValue();
-                    return rowKV.getValue();
-                  })
+                  .withFormatFunction((KV<GenericRecord, TableRow> rowKV) -> rowKV.getValue())
               );
       return writeResult;
     }
