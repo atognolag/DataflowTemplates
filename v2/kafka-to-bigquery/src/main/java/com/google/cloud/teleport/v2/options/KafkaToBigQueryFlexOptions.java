@@ -50,15 +50,14 @@ public interface KafkaToBigQueryFlexOptions
 
   //Acá meter los parámetros de entrada de regex
   @TemplateParameter.Integer(
-      name = "topicRefresh",
       groupName = "Source",
       optional = false,
       description = "Topic refresh interval expressed in seconds",
       helpText =
           "Please input how often should the source check for new topics that conform to the provided topic pattern regex")
-  Integer getTopicRefresh();
+  Integer getTopicRefreshInterval();
 
-  void setTopicRefresh(Integer value);
+  void setTopicRefreshInterval(Integer value);
 
   @TemplateParameter.Boolean(
       order = 3,

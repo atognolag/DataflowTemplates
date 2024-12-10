@@ -237,6 +237,11 @@ public class KafkaToBigQueryFlex {
     BigQueryIOUtils.validateBQStorageApiOptionsStreaming(options);
     MetadataValidator.validate(options);
 
+    //Validate dynamic pipeline topics update:
+    if (options.getTopicRefreshInterval() == null) {
+      throw new Exception("Invalid input: please provide a valid integer for the topics refresh");
+    }
+
     // Create the pipeline
     Pipeline pipeline = Pipeline.create(options);
 
@@ -249,7 +254,7 @@ public class KafkaToBigQueryFlex {
               options.getReadBootstrapServerAndTopic(), options.getProject());
       topicsRegex = bootstrapServerAndTopicList.get(1);
       bootstrapServers = bootstrapServerAndTopicList.get(0);
-      topicsRefresh = Duration.standardSeconds(options.getTopicRefresh());
+      topicsRefresh = Duration.standardSeconds(options.getTopicRefreshInterval());
     } else {
       throw new IllegalArgumentException(
           "Please provide a valid bootstrap server which matches `[,:a-zA-Z0-9._-]+` and a topic which matches `[,a-zA-Z0-9._-]+`");
@@ -408,7 +413,7 @@ public class KafkaToBigQueryFlex {
       throw new RuntimeException(
           "Missing required parameters: Schema Registry URL and/or Output Dataset");
     }
-    // Ac'a
+    // Acá
     kafkaRecords =
         kafkaRecords.apply(
             "Print Elements III before Schema coding", ParDo.of(new PrintElementFn<>()));
@@ -499,10 +504,8 @@ public class KafkaToBigQueryFlex {
                 "ReadBytesFromKafka",
                 KafkaTransform.readBytesFromKafka(
                     bootstrapServers, topicsRegex, topicsRefresh, kafkaConfig, options.getEnableCommitOffsets()))
-            .apply("Print Elements After Read", ParDo.of(new PrintElementFn<>()))
             .setCoder(
-                KafkaRecordCoder.of(NullableCoder.of(ByteArrayCoder.of()), ByteArrayCoder.of()))
-            .apply("Print Elements After Coding", ParDo.of(new PrintElementFn<>()));
+                KafkaRecordCoder.of(NullableCoder.of(ByteArrayCoder.of()), ByteArrayCoder.of()));
 
     WriteResult writeResult = processKafkaRecords(kafkaRecords, options);
     return pipeline;

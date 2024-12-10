@@ -74,8 +74,10 @@ public class BigQueryDynamicDestination
   @Override
   public TableSchema getSchema(GenericRecord element) {
     // TODO: Test if sending null can work here, might be more efficient.
+    GenericRecord unnestedRecord = (GenericRecord) element.get("data");
+
     return BigQueryAvroUtils.convertAvroSchemaToTableSchema(
-        element.getSchema(), this.persistKafkaKey);
+        unnestedRecord.getSchema(), this.persistKafkaKey);
   }
 
   @Override

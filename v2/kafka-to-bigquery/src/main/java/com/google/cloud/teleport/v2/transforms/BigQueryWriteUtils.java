@@ -22,6 +22,7 @@ import com.google.cloud.teleport.v2.kafka.transforms.AvroTransform;
 import com.google.cloud.teleport.v2.utils.BigQueryAvroUtils;
 import com.google.cloud.teleport.v2.utils.BigQueryConstants;
 import com.google.cloud.teleport.v2.values.FailsafeElement;
+import com.google.common.collect.ImmutableList;
 import java.io.Serializable;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericRecord;
@@ -32,6 +33,7 @@ import org.apache.beam.sdk.extensions.avro.schemas.utils.AvroUtils;
 import org.apache.beam.sdk.io.gcp.bigquery.BigQueryIO;
 import org.apache.beam.sdk.io.gcp.bigquery.BigQueryUtils;
 import org.apache.beam.sdk.io.gcp.bigquery.InsertRetryPolicy;
+import org.apache.beam.sdk.io.gcp.bigquery.RowMutationInformation;
 import org.apache.beam.sdk.io.gcp.bigquery.TableRowJsonCoder;
 import org.apache.beam.sdk.io.gcp.bigquery.WriteResult;
 import org.apache.beam.sdk.io.kafka.KafkaRecord;
@@ -360,6 +362,7 @@ public class BigQueryWriteUtils {
     public WriteResult expand(
         PCollection<FailsafeElement<KafkaRecord<byte[], byte[]>, GenericRecord>> input) {
       WriteResult writeResult;
+
       BigQueryIO.Write<KV<GenericRecord, TableRow>> writeToBigQuery =
           BigQueryIO.<KV<GenericRecord, TableRow>>write()
               .to(
@@ -367,20 +370,20 @@ public class BigQueryWriteUtils {
                       this.outputProject,
                       this.outputDataset,
                       this.outputTableNamePrefix,
-                      this.persistKafkaKey))
-              .withWriteDisposition(
-                  BigQueryIO.Write.WriteDisposition.valueOf(this.writeDisposition))
+                      this.persistKafkaKey
+                      ))
               .ignoreUnknownValues()
               .withAutoSchemaUpdate(true)
               .withCreateDisposition(
                   BigQueryIO.Write.CreateDisposition.valueOf(this.createDisposition))
+              .withPrimaryKey(ImmutableList.of("id")) // .withPrimaryKey(ImmutableList.of("_CDC_PK"))
               .withFailedInsertRetryPolicy(InsertRetryPolicy.retryTransientErrors())
-              .withFormatFunction(kv -> kv.getValue())
+              //.withFormatFunction(kv -> kv.getValue())
               .withExtendedErrorInfo()
-              .withMethod(BigQueryIO.Write.Method.STORAGE_WRITE_API)
-              .withNumStorageWriteApiStreams(this.numStorageWriteApiStreams)
-              .withTriggeringFrequency(
-                  Duration.standardSeconds(this.storageWriteApiTriggeringFrequencySec.longValue()));
+              .withMethod(BigQueryIO.Write.Method.STORAGE_API_AT_LEAST_ONCE)
+              .withWriteDisposition(
+                  BigQueryIO.Write.WriteDisposition.valueOf(this.writeDisposition));
+              //.withNumStorageWriteApiStreams(this.numStorageWriteApiStreams);
 
       if (!(errorHandler instanceof ErrorHandler.DefaultErrorHandler)) {
         writeToBigQuery = writeToBigQuery.withErrorHandler(errorHandler);
@@ -400,7 +403,43 @@ public class BigQueryWriteUtils {
                           NullableCoder.of(ByteArrayCoder.of()), ByteArrayCoder.of()),
                       KvCoder.of(GenericRecordCoder.of(), TableRowJsonCoder.of())))
               .apply(ParDo.of(new FailsafeElementGetPayloadFn()))
-              .apply(writeToBigQuery);
+              .apply(writeToBigQuery.
+                  withRowMutationInformationFn(
+                      (KV<GenericRecord, TableRow> kv) -> {
+                        GenericRecord originalPayload = kv.getKey();
+                        GenericRecord headers = (GenericRecord) originalPayload.get("headers");
+                        String qlikChangeSequence = headers.get("changeSequence").toString();
+                        String bqChangeSequence = "0/0";
+                        if (qlikChangeSequence != "") {
+                          bqChangeSequence = "".concat(qlikChangeSequence.substring(0,16)).concat("/");
+                          Integer number = 0;
+                          try{
+                            number = Integer.valueOf(qlikChangeSequence.substring(17,17+18));
+                          }
+                          catch (NumberFormatException ex){
+                            ex.printStackTrace();
+                            number = 0;
+                          }
+                          bqChangeSequence = bqChangeSequence.concat(Integer.toHexString(number).toUpperCase());
+                        }
+                        if (headers.get("operation").toString() == "DELETE") {
+                          System.out.println(RowMutationInformation.of(RowMutationInformation.MutationType.DELETE,
+                              bqChangeSequence));
+                          return RowMutationInformation.of(RowMutationInformation.MutationType.DELETE,
+                              bqChangeSequence);
+                        } else {
+                          System.out.println(RowMutationInformation.of(RowMutationInformation.MutationType.UPSERT,
+                              bqChangeSequence));
+                          return RowMutationInformation.of(RowMutationInformation.MutationType.UPSERT,
+                              bqChangeSequence);
+                        }
+                      })
+                  .withFormatFunction((KV<GenericRecord, TableRow> rowKV) -> {
+                    System.out.println(rowKV.getValue());
+                    TableRow hola = rowKV.getValue();
+                    return rowKV.getValue();
+                  })
+              );
       return writeResult;
     }
 
@@ -419,11 +458,13 @@ public class BigQueryWriteUtils {
       @ProcessElement
       public void processElement(ProcessContext context) {
         FailsafeElement<KafkaRecord<byte[], byte[]>, GenericRecord> element = context.element();
+        GenericRecord unnestedRecord = (GenericRecord) element.getPayload().get("data");
+        Schema unnestedSchema = unnestedRecord.getSchema();
         TableRow row =
             BigQueryAvroUtils.convertGenericRecordToTableRow(
-                element.getPayload(),
+                unnestedRecord,
                 BigQueryUtils.toTableSchema(
-                    AvroUtils.toBeamSchema(element.getPayload().getSchema())));
+                    AvroUtils.toBeamSchema(unnestedSchema)));
         if (this.persistKafkaKey) {
           row.set(BigQueryConstants.KAFKA_KEY_FIELD, element.getOriginalPayload().getKV().getKey());
         }
