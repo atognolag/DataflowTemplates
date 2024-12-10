@@ -475,6 +475,8 @@ public class KafkaToBigQueryFlex {
       Map<String, Object> kafkaConfig)
       throws Exception {
 
+    kafkaConfig.put("allow.auto.create.topics",false);
+
     if (options.getMessageFormat().equals(MessageFormatConstants.AVRO_BINARY_ENCODING)
         && options.getBinaryAvroSchemaPath() == null) {
       throw new IllegalArgumentException(
