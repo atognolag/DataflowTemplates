@@ -17,8 +17,10 @@ package com.google.cloud.teleport.v2.transforms;
 
 import com.google.api.services.bigquery.model.TableRow;
 import com.google.api.services.bigquery.model.TableSchema;
+import com.google.api.services.bigquery.model.TableConstraints;
 import com.google.cloud.teleport.v2.coders.GenericRecordCoder;
 import com.google.cloud.teleport.v2.utils.BigQueryAvroUtils;
+import com.google.common.collect.ImmutableList;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.io.gcp.bigquery.DynamicDestinations;
@@ -83,5 +85,15 @@ public class BigQueryDynamicDestination
   @Override
   public Coder<GenericRecord> getDestinationCoder() {
     return GenericRecordCoder.of();
+  }
+
+  /**
+   * Returns TableConstraints (including primary and foreign key) to be used when creating the
+   * table. Note: this is not currently supported when using FILE_LOADS!.
+   */
+  @Override
+  public TableConstraints getTableConstraints(GenericRecord element) {
+    return new TableConstraints().setPrimaryKey(
+        new TableConstraints.PrimaryKey().setColumns(ImmutableList.of("id")));
   }
 }

@@ -429,7 +429,7 @@ public class KafkaToBigQueryFlex {
               options.getCreateDisposition(),
               options.getNumStorageWriteApiStreams(),
               options.getStorageWriteApiTriggeringFrequencySec(),
-              options.getPersistKafkaKey(),
+              true,
               options.getUseAutoSharding(),
               errorHandler);
     } else {
@@ -442,7 +442,7 @@ public class KafkaToBigQueryFlex {
               options.getCreateDisposition(),
               options.getNumStorageWriteApiStreams(),
               options.getStorageWriteApiTriggeringFrequencySec(),
-              options.getPersistKafkaKey(),
+              true,
               options.getUseAutoSharding());
     }
     writeResult =
