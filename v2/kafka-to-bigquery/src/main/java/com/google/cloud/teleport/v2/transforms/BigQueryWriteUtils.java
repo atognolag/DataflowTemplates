@@ -24,7 +24,6 @@ import com.google.cloud.teleport.v2.utils.BigQueryConstants;
 import com.google.cloud.teleport.v2.values.FailsafeElement;
 import com.google.common.collect.ImmutableList;
 import java.io.Serializable;
-import java.util.List;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.beam.sdk.coders.ByteArrayCoder;
@@ -32,6 +31,7 @@ import org.apache.beam.sdk.coders.KvCoder;
 import org.apache.beam.sdk.coders.NullableCoder;
 import org.apache.beam.sdk.extensions.avro.schemas.utils.AvroUtils;
 import org.apache.beam.sdk.io.gcp.bigquery.BigQueryIO;
+import org.apache.beam.sdk.io.gcp.bigquery.BigQueryIO.Write.CreateDisposition;
 import org.apache.beam.sdk.io.gcp.bigquery.BigQueryUtils;
 import org.apache.beam.sdk.io.gcp.bigquery.InsertRetryPolicy;
 import org.apache.beam.sdk.io.gcp.bigquery.RowMutationInformation;
@@ -373,25 +373,30 @@ public class BigQueryWriteUtils {
                       this.outputTableNamePrefix,
                       this.persistKafkaKey
                       ))
-              .ignoreUnknownValues()
-              .withAutoSchemaUpdate(true)
+              //.ignoreUnknownValues()
+              //.withAutoSchemaUpdate(true)
+              // Allows the pipeline to not break if the underlying table is modified.
+              //.withSchemaUpdateOptions(Set.of(SchemaUpdateOption.ALLOW_FIELD_ADDITION, SchemaUpdateOption.ALLOW_FIELD_RELAXATION))
+              // This configuration maybe lets the pipeline update the schema of the underlying table? No, it doesn't.
               .withCreateDisposition(
-                  BigQueryIO.Write.CreateDisposition.valueOf(this.createDisposition))
-              .withPrimaryKey(List.of("id")) // .withPrimaryKey(List.of("_CDC_PK"))
+                  //BigQueryIO.Write.CreateDisposition.valueOf(this.createDisposition))
+                  CreateDisposition.CREATE_IF_NEEDED)
+              //.withSchema((KV<GenericRecord, TableRow> rowKV) -> rowKV.getValue())
+              //.withPrimaryKey(List.of(BigQueryConstants.KAFKA_KEY_FIELD))
               .withFailedInsertRetryPolicy(InsertRetryPolicy.retryTransientErrors())
               .withExtendedErrorInfo()
-              .withMethod(BigQueryIO.Write.Method.STORAGE_API_AT_LEAST_ONCE)
-              .withWriteDisposition(
-                  BigQueryIO.Write.WriteDisposition.valueOf(this.writeDisposition));
+              .withMethod(BigQueryIO.Write.Method.STORAGE_API_AT_LEAST_ONCE);
+              //.withWriteDisposition(
+              //    BigQueryIO.Write.WriteDisposition.valueOf(this.writeDisposition));
 
 
       if (!(errorHandler instanceof ErrorHandler.DefaultErrorHandler)) {
         writeToBigQuery = writeToBigQuery.withErrorHandler(errorHandler);
       }
 
-      if (this.useAutoSharding) {
-        writeToBigQuery = writeToBigQuery.withAutoSharding();
-      }
+      //if (this.useAutoSharding) {
+      //  writeToBigQuery = writeToBigQuery.withAutoSharding();
+      //}
       writeResult =
           input
               .apply(
@@ -407,7 +412,7 @@ public class BigQueryWriteUtils {
                   withRowMutationInformationFn(
                       (KV<GenericRecord, TableRow> kv) -> {
                         GenericRecord originalPayload = kv.getKey();
-                        GenericRecord headers = (GenericRecord) originalPayload.get("headers");
+                        GenericRecord headers = (GenericRecord) originalPayload;
                         String qlikChangeSequence = headers.get("changeSequence").toString();
                         String bqChangeSequence = "0/0";
                         if (qlikChangeSequence != "") {
@@ -423,9 +428,11 @@ public class BigQueryWriteUtils {
                           bqChangeSequence = bqChangeSequence.concat(Integer.toHexString(number).toUpperCase());
                         }
                         if (headers.get("operation").toString() == "DELETE") {
+                          System.out.println("Change seq: ".concat(bqChangeSequence).concat(" with Operation: DELETE and Value: ").concat(kv.getValue().toString()));
                           return RowMutationInformation.of(RowMutationInformation.MutationType.DELETE,
                               bqChangeSequence);
                         } else {
+                          System.out.println("Change seq: ".concat(bqChangeSequence).concat(" with Operation: UPSERT and Value: ").concat(kv.getValue().toString()));
                           return RowMutationInformation.of(RowMutationInformation.MutationType.UPSERT,
                               bqChangeSequence);
                         }
@@ -435,7 +442,7 @@ public class BigQueryWriteUtils {
       return writeResult;
     }
 
-    private static class GenericRecordToTableRowFn
+    public static class GenericRecordToTableRowFn
         extends DoFn<
             FailsafeElement<KafkaRecord<byte[], byte[]>, GenericRecord>,
             FailsafeElement<KafkaRecord<byte[], byte[]>, KV<GenericRecord, TableRow>>>
@@ -443,14 +450,14 @@ public class BigQueryWriteUtils {
 
       private boolean persistKafkaKey;
 
-      GenericRecordToTableRowFn(boolean persistKafkaKey) {
+      public GenericRecordToTableRowFn(boolean persistKafkaKey) {
         this.persistKafkaKey = persistKafkaKey;
       }
 
       @ProcessElement
       public void processElement(ProcessContext context) {
         FailsafeElement<KafkaRecord<byte[], byte[]>, GenericRecord> element = context.element();
-        GenericRecord unnestedRecord = (GenericRecord) element.getPayload().get("data");
+        GenericRecord unnestedRecord = (GenericRecord) element.getPayload();//.get("data");
         Schema unnestedSchema = unnestedRecord.getSchema();
         TableRow row =
             BigQueryAvroUtils.convertGenericRecordToTableRow(
@@ -465,7 +472,7 @@ public class BigQueryWriteUtils {
       }
     }
 
-    private static class FailsafeElementGetPayloadFn
+    public static class FailsafeElementGetPayloadFn
         extends DoFn<
             FailsafeElement<KafkaRecord<byte[], byte[]>, KV<GenericRecord, TableRow>>,
             KV<GenericRecord, TableRow>> {
