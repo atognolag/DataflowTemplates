@@ -24,6 +24,7 @@ import com.google.cloud.teleport.v2.utils.BigQueryConstants;
 import com.google.cloud.teleport.v2.values.FailsafeElement;
 import com.google.common.collect.ImmutableList;
 import java.io.Serializable;
+import java.util.List;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.beam.sdk.coders.ByteArrayCoder;
@@ -382,7 +383,7 @@ public class BigQueryWriteUtils {
                   //BigQueryIO.Write.CreateDisposition.valueOf(this.createDisposition))
                   CreateDisposition.CREATE_IF_NEEDED)
               //.withSchema((KV<GenericRecord, TableRow> rowKV) -> rowKV.getValue())
-              //.withPrimaryKey(List.of(BigQueryConstants.KAFKA_KEY_FIELD))
+              .withPrimaryKey(List.of(BigQueryConstants.KAFKA_KEY_FIELD))
               .withFailedInsertRetryPolicy(InsertRetryPolicy.retryTransientErrors())
               .withExtendedErrorInfo()
               .withMethod(BigQueryIO.Write.Method.STORAGE_API_AT_LEAST_ONCE);

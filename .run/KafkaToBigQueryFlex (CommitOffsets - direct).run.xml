@@ -1,0 +1,13 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="KafkaToBigQueryFlex (CommitOffsets - direct)" type="Application" factoryName="Application" folderName="Direct">
+    <option name="ALTERNATIVE_JRE_PATH" value="temurin-11" />
+    <option name="ALTERNATIVE_JRE_PATH_ENABLED" value="true" />
+    <option name="MAIN_CLASS_NAME" value="com.google.cloud.teleport.v2.templates.KafkaToBigQueryFlex" />
+    <module name="kafka-to-bigquery" />
+    <option name="PROGRAM_PARAMETERS" value="--runner=DirectRunner --readBootstrapServerAndTopic=&quot;34.175.68.53:9092;cdc|cdc2|public(?!.*json).*&quot; --topicRefreshInterval=5 --writeMode=&quot;DYNAMIC_TABLE_NAMES&quot; --kafkaReadAuthenticationMode=&quot;NONE&quot; --messageFormat=&quot;AVRO_CONFLUENT_WIRE_FORMAT&quot; --useBigQueryDLQ=&quot;true&quot; --outputDataset=&quot;qlik_cdc_data&quot; --bqTableNamePrefix=&quot;qlik&quot; --createDisposition=&quot;CREATE_IF_NEEDED&quot; --writeDisposition=&quot;WRITE_APPEND&quot; --useAutoSharding=&quot;false&quot; --enableCommitOffsets=&quot;true&quot; --consumerGroupId=&quot;dataflow-kafka-to-bq&quot; --outputDeadletterTable=&quot;sdg-af-goog:qlik_cdc_data.errors&quot; --schemaFormat=&quot;SCHEMA_REGISTRY&quot; --schemaRegistryConnectionUrl=&quot;http://34.175.68.53:8081&quot; --schemaRegistryAuthenticationMode=&quot;NONE&quot; --outputProject=&quot;sdg-af-goog&quot; --numStorageWriteApiStreams=1 --storageWriteApiTriggeringFrequencySec=1" />
+    <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/v2/kafka-to-bigquery" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>
