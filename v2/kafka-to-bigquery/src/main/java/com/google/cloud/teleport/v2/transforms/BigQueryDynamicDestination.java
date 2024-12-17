@@ -20,6 +20,7 @@ import com.google.api.services.bigquery.model.TableSchema;
 import com.google.api.services.bigquery.model.TableConstraints;
 import com.google.cloud.teleport.v2.coders.GenericRecordCoder;
 import com.google.cloud.teleport.v2.utils.BigQueryAvroUtils;
+import com.google.cloud.teleport.v2.utils.BigQueryConstants;
 import com.google.common.collect.ImmutableList;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.beam.sdk.coders.Coder;
@@ -92,6 +93,6 @@ public class BigQueryDynamicDestination
   @Override
   public TableConstraints getTableConstraints(GenericRecord element) {
     return new TableConstraints().setPrimaryKey(
-        new TableConstraints.PrimaryKey().setColumns(ImmutableList.of("id")));
+        new TableConstraints.PrimaryKey().setColumns(ImmutableList.of(BigQueryConstants.KAFKA_KEY_FIELD)));
   }
 }

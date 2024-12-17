@@ -555,7 +555,7 @@ public class BigQueryAvroUtils {
       List<TableFieldSchema> list = tableSchema.getFields();
       TableFieldSchema field = new TableFieldSchema();
       field.setName(BigQueryConstants.KAFKA_KEY_FIELD);
-      field.setType("BYTES");
+      field.setType("STRING");
       list.add(field);
       tableSchema.setFields(list);
     }

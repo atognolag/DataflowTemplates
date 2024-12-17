@@ -22,9 +22,9 @@ import com.google.cloud.teleport.v2.kafka.transforms.AvroTransform;
 import com.google.cloud.teleport.v2.utils.BigQueryAvroUtils;
 import com.google.cloud.teleport.v2.utils.BigQueryConstants;
 import com.google.cloud.teleport.v2.values.FailsafeElement;
-import com.google.common.collect.ImmutableList;
 import java.io.Serializable;
 import java.util.List;
+import java.util.Set;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.beam.sdk.coders.ByteArrayCoder;
@@ -32,7 +32,7 @@ import org.apache.beam.sdk.coders.KvCoder;
 import org.apache.beam.sdk.coders.NullableCoder;
 import org.apache.beam.sdk.extensions.avro.schemas.utils.AvroUtils;
 import org.apache.beam.sdk.io.gcp.bigquery.BigQueryIO;
-import org.apache.beam.sdk.io.gcp.bigquery.BigQueryIO.Write.CreateDisposition;
+import org.apache.beam.sdk.io.gcp.bigquery.BigQueryIO.Write.SchemaUpdateOption;
 import org.apache.beam.sdk.io.gcp.bigquery.BigQueryUtils;
 import org.apache.beam.sdk.io.gcp.bigquery.InsertRetryPolicy;
 import org.apache.beam.sdk.io.gcp.bigquery.RowMutationInformation;
@@ -183,7 +183,7 @@ public class BigQueryWriteUtils {
                 BigQueryUtils.toTableSchema(
                     AvroUtils.toBeamSchema(element.getPayload().getSchema())));
         if (this.persistKafkaKey) {
-          row.set(BigQueryConstants.KAFKA_KEY_FIELD, element.getOriginalPayload().getKV().getKey());
+          row.set(BigQueryConstants.KAFKA_KEY_FIELD, element.getOriginalPayload().getKV().getKey().toString());
         }
         context.output(FailsafeElement.of(element.getOriginalPayload(), row));
       }
@@ -374,15 +374,14 @@ public class BigQueryWriteUtils {
                       this.outputTableNamePrefix,
                       this.persistKafkaKey
                       ))
-              //.ignoreUnknownValues()
-              //.withAutoSchemaUpdate(true)
+              .ignoreUnknownValues()
+              .withAutoSchemaUpdate(true)
               // Allows the pipeline to not break if the underlying table is modified.
-              //.withSchemaUpdateOptions(Set.of(SchemaUpdateOption.ALLOW_FIELD_ADDITION, SchemaUpdateOption.ALLOW_FIELD_RELAXATION))
+              .withSchemaUpdateOptions(
+                  Set.of(SchemaUpdateOption.ALLOW_FIELD_ADDITION, SchemaUpdateOption.ALLOW_FIELD_RELAXATION))
               // This configuration maybe lets the pipeline update the schema of the underlying table? No, it doesn't.
               .withCreateDisposition(
-                  //BigQueryIO.Write.CreateDisposition.valueOf(this.createDisposition))
-                  CreateDisposition.CREATE_IF_NEEDED)
-              //.withSchema((KV<GenericRecord, TableRow> rowKV) -> rowKV.getValue())
+                  BigQueryIO.Write.CreateDisposition.valueOf(this.createDisposition))
               .withPrimaryKey(List.of(BigQueryConstants.KAFKA_KEY_FIELD))
               .withFailedInsertRetryPolicy(InsertRetryPolicy.retryTransientErrors())
               .withExtendedErrorInfo()
@@ -395,9 +394,6 @@ public class BigQueryWriteUtils {
         writeToBigQuery = writeToBigQuery.withErrorHandler(errorHandler);
       }
 
-      //if (this.useAutoSharding) {
-      //  writeToBigQuery = writeToBigQuery.withAutoSharding();
-      //}
       writeResult =
           input
               .apply(
@@ -466,7 +462,9 @@ public class BigQueryWriteUtils {
                 BigQueryUtils.toTableSchema(
                     AvroUtils.toBeamSchema(unnestedSchema)));
         if (this.persistKafkaKey) {
-          row.set(BigQueryConstants.KAFKA_KEY_FIELD, element.getOriginalPayload().getKV().getKey());
+          byte[] bytesKey = element.getOriginalPayload().getKV().getKey();
+          String strKey = new String(bytesKey); // for UTF-8 encoding
+          row.set(BigQueryConstants.KAFKA_KEY_FIELD, strKey);
         }
         context.output(
             FailsafeElement.of(element.getOriginalPayload(), KV.of(element.getPayload(), row)));
