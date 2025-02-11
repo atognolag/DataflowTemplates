@@ -92,7 +92,9 @@ public class BigQueryDynamicDestination
    */
   @Override
   public TableConstraints getTableConstraints(GenericRecord element) {
-    return new TableConstraints().setPrimaryKey(
-        new TableConstraints.PrimaryKey().setColumns(ImmutableList.of(BigQueryConstants.KAFKA_KEY_FIELD)));
+    return new TableConstraints()
+        .setPrimaryKey(
+            new TableConstraints.PrimaryKey()
+                .setColumns(ImmutableList.of(BigQueryConstants.KAFKA_KEY_FIELD)));
   }
 }

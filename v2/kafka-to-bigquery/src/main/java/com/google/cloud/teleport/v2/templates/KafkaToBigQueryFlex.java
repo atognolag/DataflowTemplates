@@ -237,7 +237,7 @@ public class KafkaToBigQueryFlex {
     BigQueryIOUtils.validateBQStorageApiOptionsStreaming(options);
     MetadataValidator.validate(options);
 
-    //Validate dynamic pipeline topics update:
+    // Validate dynamic pipeline topics update:
     if (options.getTopicRefreshInterval() == null) {
       throw new Exception("Invalid input: please provide a valid integer for the topics refresh");
     }
@@ -292,11 +292,15 @@ public class KafkaToBigQueryFlex {
     if (options.getMessageFormat() == null
         || options.getMessageFormat().equals(MessageFormatConstants.JSON)) {
 
-      pipeline = runJsonPipeline(pipeline, options, topicsRegex, bootstrapServers, topicsRefresh, kafkaConfig);
+      pipeline =
+          runJsonPipeline(
+              pipeline, options, topicsRegex, bootstrapServers, topicsRefresh, kafkaConfig);
 
     } else if (options.getMessageFormat().equals(MessageFormatConstants.AVRO_CONFLUENT_WIRE_FORMAT)
         || options.getMessageFormat().equals(MessageFormatConstants.AVRO_BINARY_ENCODING)) {
-      pipeline = runAvroPipeline(pipeline, options, topicsRegex, bootstrapServers, topicsRefresh, kafkaConfig);
+      pipeline =
+          runAvroPipeline(
+              pipeline, options, topicsRegex, bootstrapServers, topicsRefresh, kafkaConfig);
 
     } else {
       throw new IllegalArgumentException("Invalid format specified: " + options.getMessageFormat());
@@ -475,7 +479,7 @@ public class KafkaToBigQueryFlex {
       Map<String, Object> kafkaConfig)
       throws Exception {
 
-    kafkaConfig.put("allow.auto.create.topics",false);
+    kafkaConfig.put("allow.auto.create.topics", false);
 
     if (options.getMessageFormat().equals(MessageFormatConstants.AVRO_BINARY_ENCODING)
         && options.getBinaryAvroSchemaPath() == null) {
@@ -505,7 +509,11 @@ public class KafkaToBigQueryFlex {
             .apply(
                 "ReadBytesFromKafka",
                 KafkaTransform.readBytesFromKafka(
-                    bootstrapServers, topicsRegex, topicsRefresh, kafkaConfig, options.getEnableCommitOffsets()))
+                    bootstrapServers,
+                    topicsRegex,
+                    topicsRefresh,
+                    kafkaConfig,
+                    options.getEnableCommitOffsets()))
             .setCoder(
                 KafkaRecordCoder.of(NullableCoder.of(ByteArrayCoder.of()), ByteArrayCoder.of()));
 
@@ -540,7 +548,11 @@ public class KafkaToBigQueryFlex {
             .apply(
                 "ReadFromKafka",
                 KafkaTransform.readStringFromKafka(
-                    bootstrapServers, topicsRegex, topicReferesh, kafkaConfig, options.getEnableCommitOffsets()))
+                    bootstrapServers,
+                    topicsRegex,
+                    topicReferesh,
+                    kafkaConfig,
+                    options.getEnableCommitOffsets()))
 
             /*
              * Step #2: Transform the Kafka Messages into TableRows

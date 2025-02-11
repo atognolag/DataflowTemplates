@@ -183,7 +183,9 @@ public class BigQueryWriteUtils {
                 BigQueryUtils.toTableSchema(
                     AvroUtils.toBeamSchema(element.getPayload().getSchema())));
         if (this.persistKafkaKey) {
-          row.set(BigQueryConstants.KAFKA_KEY_FIELD, element.getOriginalPayload().getKV().getKey().toString());
+          row.set(
+              BigQueryConstants.KAFKA_KEY_FIELD,
+              element.getOriginalPayload().getKV().getKey().toString());
         }
         context.output(FailsafeElement.of(element.getOriginalPayload(), row));
       }
@@ -372,23 +374,24 @@ public class BigQueryWriteUtils {
                       this.outputProject,
                       this.outputDataset,
                       this.outputTableNamePrefix,
-                      this.persistKafkaKey
-                      ))
+                      this.persistKafkaKey))
               .ignoreUnknownValues()
               .withAutoSchemaUpdate(true)
               // Allows the pipeline to not break if the underlying table is modified.
               .withSchemaUpdateOptions(
-                  Set.of(SchemaUpdateOption.ALLOW_FIELD_ADDITION, SchemaUpdateOption.ALLOW_FIELD_RELAXATION))
-              // This configuration maybe lets the pipeline update the schema of the underlying table? No, it doesn't.
+                  Set.of(
+                      SchemaUpdateOption.ALLOW_FIELD_ADDITION,
+                      SchemaUpdateOption.ALLOW_FIELD_RELAXATION))
+              // This configuration maybe lets the pipeline update the schema of the underlying
+              // table? No, it doesn't.
               .withCreateDisposition(
                   BigQueryIO.Write.CreateDisposition.valueOf(this.createDisposition))
               .withPrimaryKey(List.of(BigQueryConstants.KAFKA_KEY_FIELD))
               .withFailedInsertRetryPolicy(InsertRetryPolicy.retryTransientErrors())
               .withExtendedErrorInfo()
               .withMethod(BigQueryIO.Write.Method.STORAGE_API_AT_LEAST_ONCE);
-              //.withWriteDisposition(
-              //    BigQueryIO.Write.WriteDisposition.valueOf(this.writeDisposition));
-
+      // .withWriteDisposition(
+      //    BigQueryIO.Write.WriteDisposition.valueOf(this.writeDisposition));
 
       if (!(errorHandler instanceof ErrorHandler.DefaultErrorHandler)) {
         writeToBigQuery = writeToBigQuery.withErrorHandler(errorHandler);
@@ -405,37 +408,47 @@ public class BigQueryWriteUtils {
                           NullableCoder.of(ByteArrayCoder.of()), ByteArrayCoder.of()),
                       KvCoder.of(GenericRecordCoder.of(), TableRowJsonCoder.of())))
               .apply(ParDo.of(new FailsafeElementGetPayloadFn()))
-              .apply(writeToBigQuery.
-                  withRowMutationInformationFn(
-                      (KV<GenericRecord, TableRow> kv) -> {
-                        GenericRecord originalPayload = kv.getKey();
-                        GenericRecord headers = (GenericRecord) originalPayload;
-                        String qlikChangeSequence = headers.get("changeSequence").toString();
-                        String bqChangeSequence = "0/0";
-                        if (qlikChangeSequence != "") {
-                          bqChangeSequence = "".concat(qlikChangeSequence.substring(0,16)).concat("/");
-                          Integer number = 0;
-                          try{
-                            number = Integer.valueOf(qlikChangeSequence.substring(17,17+18));
-                          }
-                          catch (NumberFormatException ex){
-                            ex.printStackTrace();
-                            number = 0;
-                          }
-                          bqChangeSequence = bqChangeSequence.concat(Integer.toHexString(number).toUpperCase());
-                        }
-                        if (headers.get("operation").toString() == "DELETE") {
-                          System.out.println("Change seq: ".concat(bqChangeSequence).concat(" with Operation: DELETE and Value: ").concat(kv.getValue().toString()));
-                          return RowMutationInformation.of(RowMutationInformation.MutationType.DELETE,
-                              bqChangeSequence);
-                        } else {
-                          System.out.println("Change seq: ".concat(bqChangeSequence).concat(" with Operation: UPSERT and Value: ").concat(kv.getValue().toString()));
-                          return RowMutationInformation.of(RowMutationInformation.MutationType.UPSERT,
-                              bqChangeSequence);
-                        }
-                      })
-                  .withFormatFunction((KV<GenericRecord, TableRow> rowKV) -> rowKV.getValue())
-              );
+              .apply(
+                  writeToBigQuery
+                      .withRowMutationInformationFn(
+                          (KV<GenericRecord, TableRow> kv) -> {
+                            GenericRecord originalPayload = kv.getKey();
+                            GenericRecord headers = (GenericRecord) originalPayload;
+                            String qlikChangeSequence = headers.get("changeSequence").toString();
+                            String bqChangeSequence = "0/0";
+                            if (qlikChangeSequence != "") {
+                              bqChangeSequence =
+                                  "".concat(qlikChangeSequence.substring(0, 16)).concat("/");
+                              Integer number = 0;
+                              try {
+                                number = Integer.valueOf(qlikChangeSequence.substring(17, 17 + 18));
+                              } catch (NumberFormatException ex) {
+                                ex.printStackTrace();
+                                number = 0;
+                              }
+                              bqChangeSequence =
+                                  bqChangeSequence.concat(
+                                      Integer.toHexString(number).toUpperCase());
+                            }
+                            if (headers.get("operation").toString() == "DELETE") {
+                              System.out.println(
+                                  "Change seq: "
+                                      .concat(bqChangeSequence)
+                                      .concat(" with Operation: DELETE and Value: ")
+                                      .concat(kv.getValue().toString()));
+                              return RowMutationInformation.of(
+                                  RowMutationInformation.MutationType.DELETE, bqChangeSequence);
+                            } else {
+                              System.out.println(
+                                  "Change seq: "
+                                      .concat(bqChangeSequence)
+                                      .concat(" with Operation: UPSERT and Value: ")
+                                      .concat(kv.getValue().toString()));
+                              return RowMutationInformation.of(
+                                  RowMutationInformation.MutationType.UPSERT, bqChangeSequence);
+                            }
+                          })
+                      .withFormatFunction((KV<GenericRecord, TableRow> rowKV) -> rowKV.getValue()));
       return writeResult;
     }
 
@@ -454,13 +467,12 @@ public class BigQueryWriteUtils {
       @ProcessElement
       public void processElement(ProcessContext context) {
         FailsafeElement<KafkaRecord<byte[], byte[]>, GenericRecord> element = context.element();
-        GenericRecord unnestedRecord = (GenericRecord) element.getPayload();//.get("data");
+        GenericRecord unnestedRecord = (GenericRecord) element.getPayload(); // .get("data");
         Schema unnestedSchema = unnestedRecord.getSchema();
         TableRow row =
             BigQueryAvroUtils.convertGenericRecordToTableRow(
                 unnestedRecord,
-                BigQueryUtils.toTableSchema(
-                    AvroUtils.toBeamSchema(unnestedSchema)));
+                BigQueryUtils.toTableSchema(AvroUtils.toBeamSchema(unnestedSchema)));
         if (this.persistKafkaKey) {
           byte[] bytesKey = element.getOriginalPayload().getKV().getKey();
           String strKey = new String(bytesKey); // for UTF-8 encoding

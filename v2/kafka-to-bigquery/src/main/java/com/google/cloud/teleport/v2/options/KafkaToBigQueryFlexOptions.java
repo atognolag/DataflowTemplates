@@ -48,7 +48,7 @@ public interface KafkaToBigQueryFlexOptions
 
   void setReadBootstrapServerAndTopic(String value);
 
-  //Acá meter los parámetros de entrada de regex
+  // Acá meter los parámetros de entrada de regex
   @TemplateParameter.Integer(
       groupName = "Source",
       optional = false,
