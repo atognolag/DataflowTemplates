@@ -15,9 +15,9 @@
  */
 package com.google.cloud.teleport.v2.transforms;
 
+import com.google.api.services.bigquery.model.TableConstraints;
 import com.google.api.services.bigquery.model.TableRow;
 import com.google.api.services.bigquery.model.TableSchema;
-import com.google.api.services.bigquery.model.TableConstraints;
 import com.google.cloud.teleport.v2.coders.GenericRecordCoder;
 import com.google.cloud.teleport.v2.utils.BigQueryAvroUtils;
 import com.google.cloud.teleport.v2.utils.BigQueryConstants;

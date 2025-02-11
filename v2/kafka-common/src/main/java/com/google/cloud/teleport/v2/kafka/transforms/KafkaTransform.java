@@ -20,7 +20,6 @@ import com.google.cloud.teleport.v2.utils.SchemaUtils;
 import com.google.cloud.teleport.v2.values.FailsafeElement;
 import java.util.List;
 import java.util.Map;
-import org.joda.time.Duration;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.beam.sdk.coders.ByteArrayCoder;
@@ -39,6 +38,7 @@ import org.apache.beam.sdk.values.PCollection;
 import org.apache.kafka.common.serialization.ByteArrayDeserializer;
 import org.apache.kafka.common.serialization.Deserializer;
 import org.apache.kafka.common.serialization.StringDeserializer;
+import org.joda.time.Duration;
 
 /** Different transformations over the processed data in the pipeline. */
 public class KafkaTransform {
