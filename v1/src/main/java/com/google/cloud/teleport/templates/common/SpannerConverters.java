@@ -152,7 +152,7 @@ public class SpannerConverters {
         description = "Snapshot time",
         helpText =
             "The timestamp that corresponds to the version of the Spanner database that you want to read from."
-                + " The timestamp must be specified in the RFC 3339 (https://tools.ietf.org/html/rfc3339) UTC \"Zulu\" format."
+                + " The timestamp must be specified in the RFC 3339 (https://tools.ietf.org/html/rfc3339) UTC Zulu Time format."
                 + " The timestamp must be in the past and"
                 + " maximum timestamp staleness (https://cloud.google.com/spanner/docs/timestamp-bounds#maximum_timestamp_staleness) applies.",
         example = "1990-12-31T23:59:60Z")
@@ -376,6 +376,16 @@ public class SpannerConverters {
 
       private String createColumnExpression(String columnName, String columnType, Dialect dialect) {
         if (dialect == Dialect.POSTGRESQL) {
+          // TODO(b/394493438): Remove casting once google-cloud-spanner supports UUID type
+          if (columnType.equals("uuid")) {
+            return String.format("\"%s\"::text AS \"%s\"", columnName, columnName);
+          }
+          if (columnType.equals("uuid[]")) {
+            return String.format(
+                "CASE WHEN \"%s\" IS NULL THEN NULL ELSE "
+                    + "ARRAY(SELECT e::text FROM UNNEST(\"%s\") AS e) END AS \"%s\"",
+                columnName, columnName, columnName);
+          }
           return "\"" + columnName + "\"";
         }
         if (columnType.equals("NUMERIC")) {
@@ -384,7 +394,16 @@ public class SpannerConverters {
         if (columnType.equals("JSON")) {
           return "`" + columnName + "`";
         }
-
+        // TODO(b/394493438): Remove casting once google-cloud-spanner supports UUID type
+        if (columnType.equals("UUID")) {
+          return String.format("CAST(`%s` AS STRING) AS %s", columnName, columnName);
+        }
+        if (columnType.equals("ARRAY<UUID>")) {
+          return String.format(
+              "CASE WHEN `%s` IS NULL THEN NULL ELSE "
+                  + "ARRAY(SELECT CAST(e AS STRING) FROM UNNEST(%s) AS e) END AS %s",
+              columnName, columnName, columnName);
+        }
         if (columnType.equals("ARRAY<NUMERIC>")) {
           return "(SELECT ARRAY_AGG(CAST(num AS STRING)) FROM UNNEST(`"
               + columnName

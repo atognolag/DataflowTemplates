@@ -18,6 +18,7 @@ package com.google.cloud.teleport.spanner;
 import static com.google.cloud.teleport.spanner.AvroUtil.DEFAULT_EXPRESSION;
 import static com.google.cloud.teleport.spanner.AvroUtil.GENERATION_EXPRESSION;
 import static com.google.cloud.teleport.spanner.AvroUtil.HIDDEN;
+import static com.google.cloud.teleport.spanner.AvroUtil.IDENTITY_COLUMN;
 import static com.google.cloud.teleport.spanner.AvroUtil.INPUT;
 import static com.google.cloud.teleport.spanner.AvroUtil.NOT_NULL;
 import static com.google.cloud.teleport.spanner.AvroUtil.OUTPUT;
@@ -54,6 +55,7 @@ import static com.google.cloud.teleport.spanner.AvroUtil.unpackNullable;
 
 import com.google.cloud.spanner.Dialect;
 import com.google.cloud.teleport.spanner.common.NumericUtils;
+import com.google.cloud.teleport.spanner.common.SizedType;
 import com.google.cloud.teleport.spanner.common.Type;
 import com.google.cloud.teleport.spanner.ddl.ChangeStream;
 import com.google.cloud.teleport.spanner.ddl.Column;
@@ -103,9 +105,6 @@ public class AvroSchemaToDdlConverter {
         builder.addChangeStream(toChangeStream(null, schema));
       } else if (schema.getProp(SPANNER_SEQUENCE_OPTION + "0") != null
           || schema.getProp(SPANNER_SEQUENCE_KIND) != null) {
-        // Cloud Sequence always requires at least one option,
-        // `sequence_kind='bit_reversed_positive`, so `sequenceOption_0` must
-        // always be valid.
         builder.addSequence(toSequence(null, schema));
       } else if (SPANNER_NAMED_SCHEMA.equals(schema.getProp(SPANNER_ENTITY))) {
         builder.addSchema(toSchema(null, schema));
@@ -454,7 +453,8 @@ public class AvroSchemaToDdlConverter {
     LOG.debug("Converting to Ddl sequenceName {}", sequenceName);
     Sequence.Builder builder = Sequence.builder(dialect).name(sequenceName);
 
-    if (schema.getProp(SPANNER_SEQUENCE_KIND) != null) {
+    if (schema.getProp(SPANNER_SEQUENCE_KIND) != null
+        && schema.getProp(SPANNER_SEQUENCE_KIND).equals("bit_reversed_positive")) {
       builder.sequenceKind(schema.getProp(SPANNER_SEQUENCE_KIND));
     }
     if (schema.getProp(SPANNER_SEQUENCE_SKIP_RANGE_MIN) != null
@@ -469,7 +469,12 @@ public class AvroSchemaToDdlConverter {
 
     ImmutableList.Builder<String> sequenceOptions = ImmutableList.builder();
     for (int i = 0; schema.getProp(SPANNER_SEQUENCE_OPTION + i) != null; i++) {
-      sequenceOptions.add(schema.getProp(SPANNER_SEQUENCE_OPTION + i));
+      String prop = schema.getProp(SPANNER_SEQUENCE_OPTION + i);
+      if (prop.equals("sequence_kind=\"default\"")) {
+        // Specify no sequence kind by using the default_sequence_kind database option.
+        continue;
+      }
+      sequenceOptions.add(prop);
     }
     builder.options(sequenceOptions.build());
 
@@ -509,6 +514,22 @@ public class AvroSchemaToDdlConverter {
       Column.Builder column = table.column(f.name());
       String sqlType = f.getProp(SQL_TYPE);
       String expression = f.getProp(GENERATION_EXPRESSION);
+      String identityColumn = f.getProp(IDENTITY_COLUMN);
+      if (identityColumn != null && Boolean.parseBoolean(identityColumn)) {
+        column.isIdentityColumn(true);
+        if (f.getProp(SPANNER_SEQUENCE_KIND) != null) {
+          column.sequenceKind(f.getProp(SPANNER_SEQUENCE_KIND));
+        }
+        if (f.getProp(SPANNER_SEQUENCE_SKIP_RANGE_MIN) != null
+            && f.getProp(SPANNER_SEQUENCE_SKIP_RANGE_MAX) != null) {
+          column
+              .skipRangeMin(Long.valueOf(f.getProp(SPANNER_SEQUENCE_SKIP_RANGE_MIN)))
+              .skipRangeMax(Long.valueOf(f.getProp(SPANNER_SEQUENCE_SKIP_RANGE_MAX)));
+        }
+        if (f.getProp(SPANNER_SEQUENCE_COUNTER_START) != null) {
+          column.counterStartValue(Long.valueOf(f.getProp(SPANNER_SEQUENCE_COUNTER_START)));
+        }
+      }
       if (expression != null) {
         // This is a generated column.
         if (Strings.isNullOrEmpty(sqlType)) {
@@ -541,7 +562,7 @@ public class AvroSchemaToDdlConverter {
         }
         if (Strings.isNullOrEmpty(sqlType)) {
           Type spannerType = inferType(avroType, true);
-          sqlType = toString(spannerType, true);
+          sqlType = SizedType.typeString(spannerType, -1, true);
         }
         String defaultExpression = f.getProp(DEFAULT_EXPRESSION);
         column.parseType(sqlType).notNull(!nullable).defaultExpression(defaultExpression);
@@ -665,6 +686,11 @@ public class AvroSchemaToDdlConverter {
             ? com.google.cloud.teleport.spanner.common.Type.float64()
             : com.google.cloud.teleport.spanner.common.Type.pgFloat8();
       case STRING:
+        if (LogicalTypes.uuid().equals(logicalType)) {
+          return (dialect == Dialect.GOOGLE_STANDARD_SQL)
+              ? com.google.cloud.teleport.spanner.common.Type.uuid()
+              : com.google.cloud.teleport.spanner.common.Type.pgUuid();
+        }
         return (dialect == Dialect.GOOGLE_STANDARD_SQL)
             ? com.google.cloud.teleport.spanner.common.Type.string()
             : com.google.cloud.teleport.spanner.common.Type.pgVarchar();
@@ -706,80 +732,5 @@ public class AvroSchemaToDdlConverter {
         }
     }
     throw new IllegalArgumentException("Cannot infer a type " + f);
-  }
-
-  private String toString(
-      com.google.cloud.teleport.spanner.common.Type spannerType, boolean supportArray) {
-    switch (spannerType.getCode()) {
-      case BOOL:
-        return "BOOL";
-      case PG_BOOL:
-        return "boolean";
-      case INT64:
-        return "INT64";
-      case PG_INT8:
-        return "bigint";
-      case FLOAT32:
-        return "FLOAT32";
-      case PG_FLOAT4:
-        return "real";
-      case FLOAT64:
-        return "FLOAT64";
-      case PG_FLOAT8:
-        return "double precision";
-      case STRING:
-        return "STRING(MAX)";
-      case PG_TEXT:
-        return "text";
-      case PG_VARCHAR:
-        return "character varying";
-      case BYTES:
-        return "BYTES(MAX)";
-      case PG_BYTEA:
-        return "bytea";
-      case TIMESTAMP:
-        return "TIMESTAMP";
-      case PG_TIMESTAMPTZ:
-        return "timestamp with time zone";
-      case PG_SPANNER_COMMIT_TIMESTAMP:
-        return "spanner.commit_timestamp";
-      case DATE:
-        return "DATE";
-      case PG_DATE:
-        return "date";
-      case NUMERIC:
-        return "NUMERIC";
-      case PG_NUMERIC:
-        return "numeric";
-      case JSON:
-        return "JSON";
-      case PROTO:
-        return "PROTO<" + spannerType.getProtoTypeFqn() + ">";
-      case ENUM:
-        return "ENUM<" + spannerType.getProtoTypeFqn() + ">";
-      case ARRAY:
-        {
-          if (supportArray) {
-            com.google.cloud.teleport.spanner.common.Type element =
-                spannerType.getArrayElementType();
-            String elementStr = toString(element, false);
-            return "ARRAY<" + elementStr + ">";
-          }
-          // otherwise fall through and throw an error.
-          break;
-        }
-      case PG_ARRAY:
-        {
-          if (supportArray) {
-            com.google.cloud.teleport.spanner.common.Type element =
-                spannerType.getArrayElementType();
-            String elementStr = toString(element, false);
-            return elementStr + "[]";
-          }
-          // otherwise fall through and throw an error.
-          break;
-        }
-    }
-    throw new IllegalArgumentException("Cannot to string the type " + spannerType);
   }
 }
